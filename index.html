@@ -302,6 +302,33 @@
             font-size: 12px;
             color: var(--color-text-secondary);
         }
+
+        .decode-result {
+            text-align: left;
+        }
+
+        .decode-result hr {
+            border: none;
+            border-top: 1px solid var(--color-border);
+            margin: var(--space-12) 0;
+        }
+
+        .decode-field {
+            font-size: 15px;
+            padding: 2px 0;
+        }
+
+        .decode-field strong {
+            display: inline-block;
+            min-width: 110px;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+
+        .decode-field .mono {
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
@@ -313,6 +340,7 @@
             <button class="tab active" data-tab="generate">Genera da Dati</button>
             <button class="tab" data-tab="verify">Verifica Cifra CF</button>
             <button class="tab" data-tab="piva">Verifica Cifra P.IVA</button>
+            <button class="tab" data-tab="decode">Decodifica CF</button>
         </div>
 
         <div class="card">
@@ -408,6 +436,15 @@
                 <button type="submit" class="btn">Calcola Cifra di Controllo</button>
             </form>
 
+            <form id="decodeForm" class="tab-content">
+                <div class="form-group">
+                    <label for="cfDecodeInput">Codice Fiscale (16 caratteri)</label>
+                    <input type="text" id="cfDecodeInput" maxlength="16" placeholder="RSSMRA85M01H501" autocomplete="off">
+                    <div id="decodeError" class="error"></div>
+                </div>
+                <button type="submit" class="btn">Decodifica Codice Fiscale</button>
+            </form>
+
             <div id="result" class="result">
                 <div class="result-label">Cifra di Controllo</div>
                 <div id="checkDigit" class="result-value"></div>
@@ -415,6 +452,20 @@
                     Codice Fiscale Completo:<br>
                     <strong id="completeCF"></strong>
                 </div>
+            </div>
+
+            <div id="decodeResult" class="result decode-result">
+                <div class="result-label">Dati Decodificati dal Codice Fiscale</div>
+                <div class="decode-field"><strong>Codice Fiscale:</strong> <span id="dcCF" class="mono"></span></div>
+                <div class="decode-field"><strong>Cifra di Controllo:</strong> <span id="dcCheckDigitStatus"></span></div>
+                <hr>
+                <div class="decode-field"><strong>Cognome:</strong> <span id="dcCognome"></span></div>
+                <div class="decode-field"><strong>Nome:</strong> <span id="dcNome"></span></div>
+                <div class="decode-field"><strong>Anno:</strong> <span id="dcAnno"></span></div>
+                <div class="decode-field"><strong>Mese:</strong> <span id="dcMese"></span></div>
+                <div class="decode-field"><strong>Giorno:</strong> <span id="dcGiorno"></span></div>
+                <div class="decode-field"><strong>Sesso:</strong> <span id="dcSesso"></span></div>
+                <div class="decode-field"><strong>Comune:</strong> <span id="dcComune" class="mono"></span></div>
             </div>
         </div>
 
@@ -562,13 +613,17 @@
                     document.getElementById('cfForm').classList.add('active');
                 } else if (targetTab === 'piva') {
                     document.getElementById('pivaForm').classList.add('active');
+                } else if (targetTab === 'decode') {
+                    document.getElementById('decodeForm').classList.add('active');
                 }
                 
                 // Reset risultati e errori
                 resultDiv.classList.remove('show');
+                document.getElementById('decodeResult').classList.remove('show');
                 document.getElementById('error').classList.remove('show');
                 document.getElementById('generateError').classList.remove('show');
                 document.getElementById('pivaError').classList.remove('show');
+                document.getElementById('decodeError').classList.remove('show');
             });
         });
 
@@ -704,6 +759,92 @@
                 pivaError.textContent = error.message;
                 pivaError.classList.add('show');
                 resultDiv.classList.remove('show');
+            }
+        });
+
+        // Decodifica codice fiscale
+        const monthNames = {
+            'A': 'Gennaio', 'B': 'Febbraio', 'C': 'Marzo',
+            'D': 'Aprile', 'E': 'Maggio', 'H': 'Giugno',
+            'L': 'Luglio', 'M': 'Agosto', 'P': 'Settembre',
+            'R': 'Ottobre', 'S': 'Novembre', 'T': 'Dicembre'
+        };
+
+        function decodeFiscalCode(cf) {
+            cf = cf.replace(/\s/g, '').toUpperCase();
+
+            if (cf.length !== 16) {
+                throw new Error('Il codice fiscale deve contenere esattamente 16 caratteri');
+            }
+            if (!/^[A-Z0-9]{16}$/.test(cf)) {
+                throw new Error('Caratteri non validi. Usa solo lettere e numeri');
+            }
+
+            const partial15 = cf.substring(0, 15);
+            const expected = calculateCheckDigit(partial15);
+            const checkDigitValid = expected === cf[15];
+
+            const cognomeCode = cf.substring(0, 3);
+            const nomeCode = cf.substring(3, 6);
+            const annoCode = cf.substring(6, 8);
+            const meseLettera = cf[8];
+            const giornoCode = cf.substring(9, 11);
+            const comuneCode = cf.substring(11, 15);
+
+            const giornoNum = parseInt(giornoCode);
+            const giorno = giornoNum > 40 ? giornoNum - 40 : giornoNum;
+            const sesso = giornoNum > 40 ? 'Femmina' : 'Maschio';
+
+            return {
+                cfCompleto: cf,
+                checkDigitValid,
+                cognomeCode,
+                nomeCode,
+                annoCompleto: 1900 + parseInt(annoCode),
+                meseNome: monthNames[meseLettera] || 'Sconosciuto',
+                meseLettera,
+                giorno: String(giorno).padStart(2, '0'),
+                sesso,
+                comuneCode
+            };
+        }
+
+        const decodeForm = document.getElementById('decodeForm');
+        const decodeInput = document.getElementById('cfDecodeInput');
+        const decodeError = document.getElementById('decodeError');
+
+        decodeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            decodeError.classList.remove('show');
+            decodeError.textContent = '';
+        });
+
+        decodeForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const cf = decodeInput.value.trim();
+
+            try {
+                const data = decodeFiscalCode(cf);
+
+                document.getElementById('dcCF').textContent = data.cfCompleto;
+                document.getElementById('dcCheckDigitStatus').textContent = data.checkDigitValid ? '✓ Valida' : '✗ Non valida';
+                document.getElementById('dcCheckDigitStatus').style.color = data.checkDigitValid
+                    ? 'var(--color-primary)' : 'var(--color-error)';
+                document.getElementById('dcCognome').textContent = data.cognomeCode + '  (codice)';
+                document.getElementById('dcNome').textContent = data.nomeCode + '  (codice)';
+                document.getElementById('dcAnno').textContent = data.annoCompleto;
+                document.getElementById('dcMese').textContent = data.meseLettera + ' → ' + data.meseNome;
+                document.getElementById('dcGiorno').textContent = data.giorno;
+                document.getElementById('dcSesso').textContent = data.sesso;
+                document.getElementById('dcComune').textContent = data.comuneCode;
+
+                document.getElementById('decodeResult').classList.add('show');
+                decodeError.classList.remove('show');
+            } catch (error) {
+                decodeError.textContent = error.message;
+                decodeError.classList.add('show');
+                document.getElementById('decodeResult').classList.remove('show');
             }
         });
     </script>
