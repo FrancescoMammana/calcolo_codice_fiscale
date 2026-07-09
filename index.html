@@ -406,7 +406,7 @@
                     </div>
                     <div class="form-group">
                         <label for="anno">Anno</label>
-                        <input type="number" id="anno" min="1900" max="2024" placeholder="1985" autocomplete="off">
+                        <input type="number" id="anno" min="1900" placeholder="1985" autocomplete="off">
                     </div>
                 </div>
 
@@ -535,6 +535,12 @@
             .then(r => r.json())
             .then(d => comuniDB = d)
             .catch(() => {});
+
+        // Imposta anno massimo dinamicamente
+        const annoInput = document.getElementById('anno');
+        const annoCorrente = new Date().getFullYear();
+        annoInput.max = annoCorrente;
+        annoInput.placeholder = String(annoCorrente);
 
         // Funzioni per il calcolo del codice fiscale completo
         function extractConsonants(str) {
@@ -919,17 +925,27 @@
             const giorno = giornoNum > 40 ? giornoNum - 40 : giornoNum;
             const sesso = giornoNum > 40 ? 'Femmina' : 'Maschio';
 
+            const annoParsed = parseInt(annoCode);
+            const annoCorrente = new Date().getFullYear();
+            const annoCompleto = annoParsed <= (annoCorrente % 100)
+                ? 2000 + annoParsed
+                : 1900 + annoParsed;
+
+            const comuneMatch = comuniDB.find(c => c.c === comuneCode);
+            const comuneNome = comuneMatch ? comuneMatch.n : null;
+
             return {
                 cfCompleto: cf,
                 checkDigitValid,
                 cognomeCode,
                 nomeCode,
-                annoCompleto: 1900 + parseInt(annoCode),
+                annoCompleto,
                 meseNome: monthNames[meseLettera] || 'Sconosciuto',
                 meseLettera,
                 giorno: String(giorno).padStart(2, '0'),
                 sesso,
-                comuneCode
+                comuneCode,
+                comuneNome
             };
         }
 
@@ -961,7 +977,9 @@
                 document.getElementById('dcMese').textContent = data.meseLettera + ' → ' + data.meseNome;
                 document.getElementById('dcGiorno').textContent = data.giorno;
                 document.getElementById('dcSesso').textContent = data.sesso;
-                document.getElementById('dcComune').textContent = data.comuneCode;
+                document.getElementById('dcComune').textContent = data.comuneNome
+                    ? `${data.comuneNome} (${data.comuneCode})`
+                    : `${data.comuneCode} (codice sconosciuto)`;
 
                 document.getElementById('decodeResult').classList.add('show');
                 decodeError.classList.remove('show');
