@@ -329,6 +329,32 @@
             font-family: monospace;
             letter-spacing: 1px;
         }
+
+        .suggestions {
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-base);
+            background: var(--color-surface);
+            margin-top: 2px;
+        }
+
+        .suggestions.show {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: var(--space-8) var(--space-12);
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.highlighted {
+            background: var(--color-primary);
+            color: var(--color-btn-primary-text);
+        }
     </style>
 </head>
 <body>
@@ -394,9 +420,15 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="comuneSearch">Comune</label>
+                    <input type="text" id="comuneSearch" placeholder="Cerca il comune per nome…" autocomplete="off">
+                    <div id="comuneSuggestions" class="suggestions"></div>
+                </div>
+
+                <div class="form-group">
                     <label for="comune">Codice Catastale Comune</label>
                     <input type="text" id="comune" maxlength="4" placeholder="H501" autocomplete="off">
-                    <small>Es: H501 per Roma, F205 per Milano</small>
+                    <small>Digita il nome sopra oppure inserisci il codice manualmente</small>
                 </div>
 
                 <div id="generateError" class="error"></div>
@@ -496,6 +528,13 @@
         };
 
         const checkDigits = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        // Carica database comuni per autocomplete
+        let comuniDB = [];
+        fetch('comuni.json')
+            .then(r => r.json())
+            .then(d => comuniDB = d)
+            .catch(() => {});
 
         // Funzioni per il calcolo del codice fiscale completo
         function extractConsonants(str) {
@@ -653,6 +692,91 @@
                 generateError.textContent = error.message;
                 generateError.classList.add('show');
                 resultDiv.classList.remove('show');
+            }
+        });
+
+        // Ricerca comune con autocomplete
+        const comuneSearch = document.getElementById('comuneSearch');
+        const comuneInput = document.getElementById('comune');
+        const suggestionsEl = document.getElementById('comuneSuggestions');
+        let selectedIndex = -1;
+
+        function filterComuni(query) {
+            if (!query || query.length < 2 || !comuniDB.length) return [];
+            const q = query.toLowerCase().replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e').replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u');
+            return comuniDB
+                .filter(c => c.n.toLowerCase().includes(q))
+                .slice(0, 50);
+        }
+
+        function renderSuggestions(results) {
+            suggestionsEl.innerHTML = '';
+            if (!results.length) {
+                suggestionsEl.classList.remove('show');
+                return;
+            }
+            results.forEach((c, i) => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.textContent = `${c.n} (${c.c} - ${c.p})`;
+                div.dataset.index = i;
+                div.addEventListener('click', () => selectComune(c));
+                div.addEventListener('mouseenter', () => {
+                    selectedIndex = i;
+                    highlightSuggestion();
+                });
+                suggestionsEl.appendChild(div);
+            });
+            suggestionsEl.classList.add('show');
+            selectedIndex = -1;
+        }
+
+        function highlightSuggestion() {
+            const items = suggestionsEl.querySelectorAll('.suggestion-item');
+            items.forEach((el, i) => el.classList.toggle('highlighted', i === selectedIndex));
+        }
+
+        function selectComune(c) {
+            comuneInput.value = c.c;
+            comuneSearch.value = c.n;
+            suggestionsEl.classList.remove('show');
+            generateError.classList.remove('show');
+        }
+
+        comuneSearch.addEventListener('input', () => {
+            const results = filterComuni(comuneSearch.value);
+            renderSuggestions(results);
+        });
+
+        comuneSearch.addEventListener('keydown', (e) => {
+            const items = suggestionsEl.querySelectorAll('.suggestion-item');
+            if (!items.length) return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                highlightSuggestion();
+                items[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                highlightSuggestion();
+                items[selectedIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                e.preventDefault();
+                items[selectedIndex]?.click();
+            } else if (e.key === 'Escape') {
+                suggestionsEl.classList.remove('show');
+            }
+        });
+
+        comuneSearch.addEventListener('blur', () => {
+            setTimeout(() => suggestionsEl.classList.remove('show'), 150);
+        });
+
+        comuneSearch.addEventListener('focus', () => {
+            if (comuneSearch.value.length >= 2) {
+                const results = filterComuni(comuneSearch.value);
+                renderSuggestions(results);
             }
         });
 
