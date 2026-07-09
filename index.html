@@ -955,8 +955,8 @@
                 document.getElementById('dcCheckDigitStatus').textContent = data.checkDigitValid ? '✓ Valida' : '✗ Non valida';
                 document.getElementById('dcCheckDigitStatus').style.color = data.checkDigitValid
                     ? 'var(--color-primary)' : 'var(--color-error)';
-                document.getElementById('dcCognome').textContent = data.cognomeCode + '  (codice)';
-                document.getElementById('dcNome').textContent = data.nomeCode + '  (codice)';
+                document.getElementById('dcCognome').textContent = data.cognomeCode;
+                document.getElementById('dcNome').textContent = data.nomeCode;
                 document.getElementById('dcAnno').textContent = data.annoCompleto;
                 document.getElementById('dcMese').textContent = data.meseLettera + ' → ' + data.meseNome;
                 document.getElementById('dcGiorno').textContent = data.giorno;
